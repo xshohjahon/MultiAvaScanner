@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MultiAvaScaner — История проверок</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #080b0f;
+    --surface: #0e1117;
+    --surface2: #151a22;
+    --border: #1e2535;
+    --border2: #2a3347;
+    --accent: #00ff9d;
+    --accent-dim: #00cc7a;
+    --danger: #ff4444;
+    --warn: #ffaa00;
+    --safe: #00ff9d;
+    --text: #e2e8f4;
+    --muted: #5a6580;
+    --muted2: #8892a4;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Syne', sans-serif;
+  }
+
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,255,157,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,255,157,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  nav {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(8,11,15,0.85);
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 32px;
+    height: 56px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+
+  .nav-logo {
+    font-family: var(--mono);
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: -0.5px;
+    display: flex; align-items: center; gap: 10px;
+    text-decoration: none;
+  }
+
+  .logo-pulse {
+    width: 8px; height: 8px;
+    background: var(--accent);
+    border-radius: 50%;
+    animation: blink 2s ease-in-out infinite;
+  }
+
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+  .nav-links { display: flex; gap: 24px; align-items: center; }
+
+  .nav-links a {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--muted2);
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+
+  .nav-links a:hover { color: var(--text); }
+
+  .nav-badge {
+    font-family: var(--mono);
+    font-size: 10px;
+    background: rgba(0,255,157,0.08);
+    color: var(--accent);
+    border: 1px solid rgba(0,255,157,0.2);
+    padding: 3px 8px;
+    border-radius: 4px;
+  }
+
+  .hero {
+    position: relative; z-index: 1;
+    padding: 72px 32px 36px;
+    text-align: center;
+    max-width: 760px;
+    margin: 0 auto;
+  }
+
+  .hero-tag {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: var(--mono); font-size: 11px;
+    color: var(--accent);
+    background: rgba(0,255,157,0.06);
+    border: 1px solid rgba(0,255,157,0.15);
+    padding: 5px 12px; border-radius: 20px;
+    margin-bottom: 24px;
+  }
+
+  .hero h1 {
+    font-size: clamp(28px, 5vw, 42px);
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -1px;
+    margin-bottom: 14px;
+  }
+
+  .hero h1 span { color: var(--accent); }
+
+  .hero p {
+    font-size: 15px;
+    color: var(--muted2);
+    line-height: 1.7;
+    max-width: 560px;
+    margin: 0 auto;
+  }
+
+  .history-section {
+    position: relative; z-index: 1;
+    max-width: 920px;
+    margin: 0 auto 80px;
+    padding: 0 24px;
+  }
+
+  .history-card {
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+
+  .history-header {
+    padding: 18px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .history-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .history-sub {
+    margin-top: 4px;
+    font-size: 11px;
+    font-family: var(--mono);
+    color: var(--muted);
+  }
+
+  .back-btn {
+    background: rgba(0,255,157,0.08);
+    color: var(--accent);
+    border: 1px solid rgba(0,255,157,0.2);
+    text-decoration: none;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    transition: all 0.2s;
+  }
+
+  .back-btn:hover {
+    background: rgba(0,255,157,0.12);
+    transform: translateY(-1px);
+  }
+
+  .table-head,
+  .scan-row {
+    display: grid;
+    grid-template-columns: 80px 100px 1fr 120px 100px 150px;
+    gap: 12px;
+    align-items: center;
+    padding: 14px 18px;
+  }
+
+  .table-head {
+    border-bottom: 1px solid var(--border);
+    background: rgba(255,255,255,0.02);
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  .scan-row {
+    border-bottom: 1px solid var(--border);
+    text-decoration: none;
+    color: inherit;
+    transition: background 0.2s;
+  }
+
+  .scan-row:hover {
+    background: var(--surface2);
+  }
+
+  .scan-id,
+  .scan-date,
+  .scan-score,
+  .scan-target {
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+
+  .scan-id,
+  .scan-date {
+    color: var(--muted2);
+  }
+
+  .scan-type {
+    display: inline-block;
+    width: fit-content;
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--border2);
+    background: var(--surface2);
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted2);
+  }
+
+  .scan-target {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    color: var(--text);
+  }
+
+  .status-safe { color: var(--safe); font-weight: 700; font-size: 12px; }
+  .status-suspicious { color: var(--warn); font-weight: 700; font-size: 12px; }
+  .status-danger { color: var(--danger); font-weight: 700; font-size: 12px; }
+
+  .score-safe { color: var(--safe); font-weight: 700; }
+  .score-suspicious { color: var(--warn); font-weight: 700; }
+  .score-danger { color: var(--danger); font-weight: 700; }
+
+  .empty-box {
+    text-align: center;
+    padding: 34px 20px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  footer {
+    position: relative; z-index: 1;
+    border-top: 1px solid var(--border);
+    padding: 20px 32px;
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 12px; color: var(--muted);
+  }
+
+  footer a { color: var(--muted2); text-decoration: none; }
+  footer a:hover { color: var(--text); }
+
+  @media (max-width: 900px) {
+    .table-head,
+    .scan-row {
+      grid-template-columns: 70px 90px 1fr 110px;
+    }
+
+    .scan-score,
+    .scan-date,
+    .head-score,
+    .head-date {
+      display: none;
+    }
+  }
+
+  @media (max-width: 640px) {
+    nav { padding: 0 16px; }
+    .hero { padding: 56px 20px 28px; }
+    .history-section { padding: 0 16px; }
+
+    .table-head,
+    .scan-row {
+      grid-template-columns: 70px 90px 1fr;
+    }
+
+    .head-status,
+    .scan-status {
+      display: none;
+    }
+
+    footer {
+      padding: 18px 16px;
+      flex-direction: column;
+      gap: 8px;
+      text-align: center;
+    }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <a class="nav-logo" href="/">
+    <div class="logo-pulse"></div>
+    MultiAvaScaner
+  </a>
+  <div class="nav-links">
+    <a href="/">Главная</a>
+    <span class="nav-badge">History Log</span>
+  </div>
+</nav>
+
+<section class="hero">
+  <div class="hero-tag">
+    <div class="logo-pulse"></div>
+    Архив сканирований
+  </div>
+  <h1>История <span>проверок</span></h1>
+  <p>Все завершённые проверки ссылок и APK-файлов, сохранённые в системе.</p>
+</section>
+
+<section class="history-section">
+  <div class="history-card">
+    <div class="history-header">
+      <div>
+        <div class="history-title">Последние результаты</div>
+        <div class="history-sub">Журнал URL и APK сканирований</div>
+      </div>
+      <a href="/" class="back-btn">← На главную</a>
+    </div>
+
+    {% if scans %}
+      <div class="table-head">
+        <div>ID</div>
+        <div>Тип</div>
+        <div>Объект</div>
+        <div class="head-status">Статус</div>
+        <div class="head-score">Счёт</div>
+        <div class="head-date">Дата</div>
+      </div>
+
+      {% for scan in scans %}
+      <a class="scan-row">
+        <div class="scan-id">#{{ scan.id }}</div>
+
+        <div>
+          <span class="scan-type">{{ scan.scan_type|upper }}</span>
+        </div>
+
+        <div class="scan-target">
+          {% if scan.scan_type == 'url' %}
+            {{ scan.url }}
+          {% else %}
+            {{ scan.file_name }}
+          {% endif %}
+        </div>
+
+        <div class="scan-status">
+          {% if scan.verdict == 'clean' %}
+            <span class="status-safe">Безопасно</span>
+          {% elif scan.verdict == 'suspicious' %}
+            <span class="status-suspicious">Подозрительно</span>
+          {% else %}
+            <span class="status-danger">Опасно</span>
+          {% endif %}
+        </div>
+
+        <div class="scan-score">
+          {% if scan.verdict == 'clean' %}
+            <span class="score-safe">{{ scan.malicious_count }}/{{ scan.total_engines }}</span>
+          {% elif scan.verdict == 'suspicious' %}
+            <span class="score-suspicious">{{ scan.malicious_count }}/{{ scan.total_engines }}</span>
+          {% else %}
+            <span class="score-danger">{{ scan.malicious_count }}/{{ scan.total_engines }}</span>
+          {% endif %}
+        </div>
+
+        <div class="scan-date">{{ scan.created_at|date:"d.m.Y H:i" }}</div>
+      </a>
+      {% endfor %}
+    {% else %}
+      <div class="empty-box">История пока пуста — первая проверка появится здесь.</div>
+    {% endif %}
+  </div>
+</section>
+
+<footer>
+  <span>MultiAvaScaner © 2025</span>
+  <span>Powered by <a href="https://virustotal.com" target="_blank">VirusTotal</a></span>
+</footer>
+
+</body>
+</html>

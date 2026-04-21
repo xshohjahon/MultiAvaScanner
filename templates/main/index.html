@@ -1,0 +1,1068 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MultiAvaScaner — Проверка ссылок и APK</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="icon" type="image/png" href="{% static 'icon/cyber-security.png' %}">
+  <style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #080b0f;
+    --surface: #0e1117;
+    --surface2: #151a22;
+    --border: #1e2535;
+    --border2: #2a3347;
+    --accent: #00ff9d;
+    --accent-dim: #00cc7a;
+    --danger: #ff4444;
+    --warn: #ffaa00;
+    --safe: #00ff9d;
+    --text: #e2e8f4;
+    --muted: #5a6580;
+    --muted2: #8892a4;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Syne', sans-serif;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* grid bg */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,255,157,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,255,157,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ── NAV ── */
+  nav {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(8,11,15,0.85);
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 32px;
+    height: 56px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+
+  .nav-logo {
+    font-family: var(--mono);
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: -0.5px;
+    display: flex; align-items: center; gap: 10px;
+    text-decoration: none;
+  }
+
+  .logo-pulse {
+    width: 8px; height: 8px;
+    background: var(--accent);
+    border-radius: 50%;
+    animation: blink 2s ease-in-out infinite;
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+  .nav-links { display: flex; gap: 24px; align-items: center; }
+  .nav-links a {
+    font-size: 13px; font-weight: 500;
+    color: var(--muted2); text-decoration: none;
+    transition: color 0.2s;
+  }
+  .nav-links a:hover { color: var(--text); }
+
+  .nav-badge {
+    font-family: var(--mono);
+    font-size: 10px;
+    background: rgba(0,255,157,0.08);
+    color: var(--accent);
+    border: 1px solid rgba(0,255,157,0.2);
+    padding: 3px 8px; border-radius: 4px;
+  }
+
+  /* ── HERO ── */
+  .hero {
+    position: relative; z-index: 1;
+    padding: 72px 32px 48px;
+    text-align: center;
+    max-width: 700px;
+    margin: 0 auto;
+  }
+
+  .hero-tag {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: var(--mono); font-size: 11px;
+    color: var(--accent);
+    background: rgba(0,255,157,0.06);
+    border: 1px solid rgba(0,255,157,0.15);
+    padding: 5px 12px; border-radius: 20px;
+    margin-bottom: 24px;
+    animation: fadeUp 0.5s ease both;
+  }
+
+  .hero h1 {
+    font-size: clamp(28px, 5vw, 44px);
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -1px;
+    color: var(--text);
+    margin-bottom: 16px;
+    animation: fadeUp 0.5s 0.1s ease both;
+  }
+
+  .hero h1 span { color: var(--accent); }
+
+  .hero p {
+    font-size: 15px; font-weight: 400;
+    color: var(--muted2); line-height: 1.7;
+    max-width: 480px; margin: 0 auto 40px;
+    animation: fadeUp 0.5s 0.2s ease both;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── SCANNER CARD ── */
+  .scanner {
+    position: relative; z-index: 1;
+    max-width: 680px; margin: 0 auto 60px;
+    padding: 0 24px;
+    animation: fadeUp 0.5s 0.3s ease both;
+  }
+
+  .scanner-card {
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+
+  /* tabs */
+  .tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .tab-btn {
+    flex: 1; padding: 14px 20px;
+    background: transparent; border: none;
+    font-family: var(--sans); font-size: 13px; font-weight: 600;
+    color: var(--muted); cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    transition: all 0.2s;
+    border-bottom: 2px solid transparent;
+    position: relative; top: 1px;
+  }
+
+  .tab-btn.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+    background: rgba(0,255,157,0.03);
+  }
+
+  .tab-btn:hover:not(.active) { color: var(--text); }
+
+  .tab-icon { font-size: 15px; }
+
+  /* panels */
+  .tab-panel { display: none; padding: 24px; }
+  .tab-panel.active { display: block; }
+
+  /* url input */
+  .url-row {
+    display: flex; gap: 10px; align-items: center;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 10px;
+    padding: 6px 6px 6px 16px;
+    transition: border-color 0.2s;
+  }
+  .url-row:focus-within { border-color: rgba(0,255,157,0.4); }
+
+  .url-row input {
+    flex: 1; background: transparent; border: none; outline: none;
+    font-family: var(--mono); font-size: 13px;
+    color: var(--text);
+  }
+  .url-row input::placeholder { color: var(--muted); }
+
+  .btn-scan {
+    background: var(--accent); color: #060e09;
+    border: none; padding: 10px 22px;
+    border-radius: 7px;
+    font-family: var(--sans); font-size: 13px; font-weight: 700;
+    cursor: pointer; white-space: nowrap;
+    transition: all 0.2s;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .btn-scan:hover { background: var(--accent-dim); transform: translateY(-1px); }
+  .btn-scan:active { transform: translateY(0); }
+  .btn-scan:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  /* file drop */
+  .drop-zone {
+    border: 1.5px dashed var(--border2);
+    border-radius: 10px;
+    padding: 36px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+  }
+  .drop-zone:hover, .drop-zone.dragover {
+    border-color: rgba(0,255,157,0.4);
+    background: rgba(0,255,157,0.03);
+  }
+
+  .drop-zone input[type="file"] {
+    position: absolute; inset: 0;
+    opacity: 0; cursor: pointer; width: 100%; height: 100%;
+  }
+
+  .drop-icon {
+    font-size: 32px; margin-bottom: 10px; display: block;
+    filter: grayscale(0.3);
+  }
+
+  .drop-title {
+    font-size: 14px; font-weight: 600; color: var(--text);
+    margin-bottom: 4px;
+  }
+
+  .drop-sub {
+    font-size: 12px; color: var(--muted);
+    font-family: var(--mono);
+  }
+
+  .drop-sub span { color: var(--accent); }
+
+  .file-selected {
+    display: none;
+    margin-top: 12px;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    padding: 10px 14px;
+    align-items: center; gap: 10px;
+  }
+  .file-selected.show { display: flex; }
+  .file-selected-name {
+    font-family: var(--mono); font-size: 12px; color: var(--accent);
+    flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .file-selected-size { font-size: 11px; color: var(--muted); white-space: nowrap; }
+
+  .btn-scan-file {
+    width: 100%; margin-top: 14px;
+    background: var(--accent); color: #060e09;
+    border: none; padding: 12px;
+    border-radius: 8px;
+    font-family: var(--sans); font-size: 14px; font-weight: 700;
+    cursor: pointer; transition: all 0.2s;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .btn-scan-file:hover { background: var(--accent-dim); }
+  .btn-scan-file:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* ── RESULT ── */
+  .result-wrap {
+    margin-top: 16px;
+    display: none;
+    animation: fadeUp 0.4s ease both;
+  }
+  .result-wrap.show { display: block; }
+
+  .result-box {
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .result-header {
+    padding: 16px 20px;
+    display: flex; align-items: center; gap: 14px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .verdict-icon {
+    width: 40px; height: 40px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; flex-shrink: 0;
+  }
+  .verdict-icon.clean    { background: rgba(0,255,157,0.1); }
+  .verdict-icon.danger   { background: rgba(255,68,68,0.1); }
+  .verdict-icon.suspicious { background: rgba(255,170,0,0.1); }
+
+  .verdict-title {
+    font-size: 15px; font-weight: 700; color: var(--text);
+  }
+  .verdict-title.clean    { color: var(--safe); }
+  .verdict-title.danger   { color: var(--danger); }
+  .verdict-title.suspicious { color: var(--warn); }
+
+  .verdict-sub {
+    font-size: 12px; color: var(--muted2); margin-top: 2px;
+    font-family: var(--mono);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    max-width: 380px;
+  }
+
+  .result-stats {
+    display: grid; grid-template-columns: repeat(4,1fr);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .stat-item {
+    padding: 14px 16px; text-align: center;
+    border-right: 1px solid var(--border);
+  }
+  .stat-item:last-child { border-right: none; }
+
+  .stat-num {
+    font-family: var(--mono); font-size: 22px; font-weight: 700;
+    margin-bottom: 3px;
+  }
+  .stat-num.red { color: var(--danger); }
+  .stat-num.yellow { color: var(--warn); }
+  .stat-num.green { color: var(--safe); }
+  .stat-num.gray { color: var(--muted2); }
+
+  .stat-label { font-size: 11px; color: var(--muted); }
+
+  /* progress bar */
+  .danger-bar-wrap { padding: 16px 20px; }
+  .danger-bar-label {
+    display: flex; justify-content: space-between;
+    font-size: 12px; color: var(--muted2);
+    margin-bottom: 8px; font-family: var(--mono);
+  }
+  .danger-bar {
+    height: 6px; background: var(--border);
+    border-radius: 3px; overflow: hidden;
+  }
+  .danger-bar-fill {
+    height: 100%; border-radius: 3px;
+    transition: width 1s cubic-bezier(0.4,0,0.2,1);
+    width: 0%;
+  }
+  .danger-bar-fill.red    { background: var(--danger); }
+  .danger-bar-fill.yellow { background: var(--warn); }
+  .danger-bar-fill.green  { background: var(--safe); }
+
+  /* loading */
+  .loading-wrap {
+    display: none; padding: 32px;
+    text-align: center;
+  }
+  .loading-wrap.show { display: block; }
+
+  .spinner {
+    width: 36px; height: 36px;
+    border: 2px solid var(--border2);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 12px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .loading-text {
+    font-family: var(--mono); font-size: 12px; color: var(--muted2);
+  }
+
+  .error-box {
+    display: none; margin-top: 12px;
+    background: rgba(255,68,68,0.06);
+    border: 1px solid rgba(255,68,68,0.2);
+    border-radius: 8px; padding: 12px 16px;
+    font-family: var(--mono); font-size: 12px; color: var(--danger);
+  }
+  .error-box.show { display: block; }
+
+  /* ── RECENT ── */
+  .recent-section {
+    position: relative; z-index: 1;
+    max-width: 680px; margin: 0 auto 80px;
+    padding: 0 24px;
+  }
+
+  .section-title {
+    font-size: 13px; font-weight: 600;
+    color: var(--muted2);
+    font-family: var(--mono);
+    text-transform: uppercase; letter-spacing: 1px;
+    margin-bottom: 14px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .section-title::after {
+    content: ''; flex: 1; height: 1px; background: var(--border);
+  }
+
+  .recent-list { display: flex; flex-direction: column; gap: 6px; }
+
+  .recent-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    display: flex; align-items: center; gap: 12px;
+    text-decoration: none;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .recent-item:hover {
+    border-color: var(--border2);
+    background: var(--surface2);
+  }
+
+  .recent-dot {
+    width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+  }
+  .recent-dot.clean    { background: var(--safe); }
+  .recent-dot.danger   { background: var(--danger); }
+  .recent-dot.suspicious { background: var(--warn); }
+
+  .recent-type {
+    font-family: var(--mono); font-size: 10px;
+    background: var(--surface2); border: 1px solid var(--border2);
+    color: var(--muted2);
+    padding: 2px 6px; border-radius: 3px;
+    flex-shrink: 0;
+  }
+
+  .recent-target {
+    font-family: var(--mono); font-size: 12px; color: var(--muted2);
+    flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+
+  .recent-score {
+    font-family: var(--mono); font-size: 11px; font-weight: 700;
+    flex-shrink: 0;
+  }
+  .recent-score.clean    { color: var(--safe); }
+  .recent-score.danger   { color: var(--danger); }
+  .recent-score.suspicious { color: var(--warn); }
+
+  .recent-time {
+    font-size: 11px; color: var(--muted); flex-shrink: 0;
+  }
+
+  .no-recent {
+    text-align: center; padding: 28px;
+    font-family: var(--mono); font-size: 12px; color: var(--muted);
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+
+  /* ── FOOTER ── */
+  footer {
+    position: relative; z-index: 1;
+    border-top: 1px solid var(--border);
+    padding: 20px 32px;
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 12px; color: var(--muted);
+  }
+
+  footer a { color: var(--muted2); text-decoration: none; }
+  footer a:hover { color: var(--text); }
+</style>
+</head>
+<body>
+
+<nav>
+  <a class="nav-logo" href="/">
+    <div class="logo-pulse"></div>
+    MultiAvaScaner
+  </a>
+  <div class="nav-links">
+    <a href="/history/">История</a>
+    <span class="nav-badge">VirusTotal API</span>
+  </div>
+</nav>
+
+<section class="hero">
+  <div class="hero-tag">
+    <div class="logo-pulse"></div>
+    Онлайн сканер угроз
+  </div>
+  <h1>Проверь <span>ссылку</span> или<br>APK файл на вирусы</h1>
+  <p>Используем VirusTotal API — 70+ антивирусных движков проверят твой файл или URL за секунды.</p>
+</section>
+
+<div class="scanner">
+  <div class="scanner-card">
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="url">
+        <span class="tab-icon">🔗</span> Проверить ссылку
+      </button>
+      <button class="tab-btn" data-tab="apk">
+        <span class="tab-icon">📦</span> Проверить APK
+      </button>
+      <button class="tab-btn" data-tab="qr">
+  <span class="tab-icon">📷</span> QR Code
+</button>
+      <button class="tab-btn" data-tab="password">
+  <span class="tab-icon">🔐</span> Password
+</button>
+    </div>
+
+    <!-- URL панель -->
+    <div class="tab-panel active" id="tab-url">
+      <form id="form-url" method="post" action="{% url 'scan_url' %}">
+        {% csrf_token %}
+        <div class="url-row">
+          <input
+            type="text"
+            name="url"
+            id="url-input"
+            placeholder="https://example.com или вставь подозрительную ссылку..."
+            autocomplete="off"
+          >
+          <button class="btn-scan" type="submit" id="btn-url-scan">
+            <span>Сканировать</span>
+          </button>
+        </div>
+      </form>
+
+      <div class="loading-wrap" id="loading-url">
+        <div class="spinner"></div>
+        <div class="loading-text" id="loading-text-url">Отправляем на VirusTotal...</div>
+      </div>
+
+      <div class="error-box" id="error-url"></div>
+
+      <div class="result-wrap" id="result-url">
+        <div class="result-box">
+          <div class="result-header">
+            <div class="verdict-icon" id="r-icon">✅</div>
+            <div>
+              <div class="verdict-title" id="r-title">Безопасно</div>
+              <div class="verdict-sub" id="r-sub">—</div>
+            </div>
+          </div>
+          <div class="result-stats">
+            <div class="stat-item">
+              <div class="stat-num red" id="r-malicious">0</div>
+              <div class="stat-label">Опасных</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-num yellow" id="r-suspicious">0</div>
+              <div class="stat-label">Подозрит.</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-num green" id="r-harmless">0</div>
+              <div class="stat-label">Чистых</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-num gray" id="r-undetected">0</div>
+              <div class="stat-label">Не проверили</div>
+            </div>
+          </div>
+          <div class="danger-bar-wrap">
+            <div class="danger-bar-label">
+              <span>Уровень угрозы</span>
+              <span id="r-percent">0%</span>
+            </div>
+            <div class="danger-bar">
+              <div class="danger-bar-fill" id="r-bar"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- APK панель -->
+    <div class="tab-panel" id="tab-apk">
+      <form id="form-apk" method="post" action="{% url 'scan_file' %}" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div class="drop-zone" id="drop-zone">
+          <input type="file" name="file" id="apk-input" accept=".apk">
+          <span class="drop-icon">📦</span>
+          <div class="drop-title">Перетащи APK файл сюда</div>
+          <div class="drop-sub">или <span>нажми для выбора</span> · макс. 32MB</div>
+        </div>
+
+        <div class="file-selected" id="file-selected">
+          <span class="file-selected-name" id="file-name-label">—</span>
+          <span class="file-selected-size" id="file-size-label">—</span>
+        </div>
+
+        <button class="btn-scan-file" type="submit" id="btn-apk-scan" disabled>
+          📦 Сканировать APK
+        </button>
+      </form>
+
+      <div class="loading-wrap" id="loading-apk">
+        <div class="spinner"></div>
+        <div class="loading-text" id="loading-text-apk">Загружаем файл на VirusTotal...</div>
+      </div>
+
+      <div class="error-box" id="error-apk"></div>
+
+      <div class="result-wrap" id="result-apk">
+        <div class="result-box">
+          <div class="result-header">
+            <div class="verdict-icon" id="ra-icon">✅</div>
+            <div>
+              <div class="verdict-title" id="ra-title">Безопасно</div>
+              <div class="verdict-sub" id="ra-sub">—</div>
+            </div>
+          </div>
+          <div class="result-stats">
+            <div class="stat-item">
+              <div class="stat-num red" id="ra-malicious">0</div>
+              <div class="stat-label">Опасных</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-num yellow" id="ra-suspicious">0</div>
+              <div class="stat-label">Подозрит.</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-num green" id="ra-harmless">0</div>
+              <div class="stat-label">Чистых</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-num gray" id="ra-undetected">0</div>
+              <div class="stat-label">Не проверили</div>
+            </div>
+          </div>
+          <div class="danger-bar-wrap">
+            <div class="danger-bar-label">
+              <span>Уровень угрозы</span>
+              <span id="ra-percent">0%</span>
+            </div>
+            <div class="danger-bar">
+              <div class="danger-bar-fill" id="ra-bar"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- QR панель -->
+    <div class="tab-panel" id="tab-qr">
+  <form id="form-qr" method="post" action="{% url 'scan_qr' %}" enctype="multipart/form-data">
+    {% csrf_token %}
+
+    <div class="drop-zone" id="qr-drop-zone">
+      <input type="file" name="qr" id="qr-input" accept="image/*">
+      <span class="drop-icon">📷</span>
+      <div class="drop-title">Перетащи изображение с QR сюда</div>
+      <div class="drop-sub">или <span>нажми для выбора</span> · PNG / JPG / JPEG</div>
+    </div>
+
+    <div class="file-selected" id="qr-file-selected">
+      <span class="file-selected-name" id="qr-file-name-label">—</span>
+      <span class="file-selected-size" id="qr-file-size-label">—</span>
+    </div>
+
+    <button class="btn-scan-file" type="submit" id="btn-qr-scan" disabled>
+      📷 Сканировать QR
+    </button>
+  </form>
+
+  <div class="loading-wrap" id="loading-qr">
+    <div class="spinner"></div>
+    <div class="loading-text" id="loading-text-qr">Распознаём QR код...</div>
+  </div>
+
+  <div class="error-box" id="error-qr"></div>
+
+  <div class="result-wrap" id="result-qr">
+    <div class="result-box">
+      <div class="result-header">
+        <div class="verdict-icon" id="qr-icon">📷</div>
+        <div>
+          <div class="verdict-title" id="qr-title">QR обработан</div>
+          <div class="verdict-sub" id="qr-sub">—</div>
+        </div>
+      </div>
+      <div class="result-stats">
+        <div class="stat-item">
+          <div class="stat-num red" id="qr-malicious">0</div>
+          <div class="stat-label">Опасных</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-num yellow" id="qr-suspicious">0</div>
+          <div class="stat-label">Подозрит.</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-num green" id="qr-harmless">0</div>
+          <div class="stat-label">Чистых</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-num gray" id="qr-undetected">0</div>
+          <div class="stat-label">Не проверили</div>
+        </div>
+      </div>
+      <div class="danger-bar-wrap">
+        <div class="danger-bar-label">
+          <span>Уровень угрозы</span>
+          <span id="qr-percent">0%</span>
+        </div>
+        <div class="danger-bar">
+          <div class="danger-bar-fill" id="qr-bar"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    <!-- Password -->
+    <div class="tab-panel" id="tab-password">
+  <form id="form-password" method="post" action="{% url 'scan_password' %}">
+    {% csrf_token %}
+    <div class="url-row">
+      <input
+        type="password"
+        name="password"
+        id="password-input"
+        placeholder="Введите пароль для проверки..."
+        autocomplete="off"
+      >
+      <button class="btn-scan" type="submit">Проверить</button>
+    </div>
+  </form>
+
+  <div class="loading-wrap" id="loading-password">
+    <div class="spinner"></div>
+    <div class="loading-text" id="loading-text-password">Проверяем пароль по HIBP...</div>
+  </div>
+
+  <div class="error-box" id="error-password"></div>
+
+  <div class="result-wrap" id="result-password">
+    <div class="result-box">
+
+      <div class="result-header">
+        <div class="verdict-icon" id="pw-icon">🔐</div>
+        <div>
+          <div class="verdict-title" id="pw-title">Результат</div>
+          <div class="verdict-sub" id="pw-sub">—</div>
+          <div id="pw-count" style="margin-top:10px;"></div>
+          <div class="verdict-sub" id="pw-recommendation" style="margin-top:8px; white-space: pre-line;"></div>
+        </div>
+      </div>
+    </div>
+    <button type="button" class="btn-scan-file" id="generate-password-btn" style="margin-top:12px;">
+  🔐 Сгенерировать надёжный пароль
+</button>
+
+<div class="file-selected" id="generated-password-box" style="display:none; margin-top:10px;">
+  <span class="file-selected-name" id="generated-password-text"></span>
+</div>
+
+  </div>
+</div>
+  </div>
+</div>
+
+<!-- Последние сканирования -->
+<section class="recent-section">
+  <div class="section-title">Последние проверки</div>
+  <div class="recent-list">
+    {% if recent %}
+      {% for scan in recent %}
+      <a class="recent-item">
+        <div class="recent-dot {{ scan.verdict }}"></div>
+        <span class="recent-type">{{ scan.scan_type|upper }}</span>
+        <span class="recent-target">
+          {% if scan.scan_type == 'url' %}
+  {{ scan.url }}
+{% elif scan.scan_type == 'qr' %}
+  {{ scan.url|default:"QR code" }}
+{% else %}
+  {{ scan.file_name }}
+{% endif %}
+        </span>
+        <span class="recent-score {{ scan.verdict }}">
+          {{ scan.malicious_count }}/{{ scan.total_engines }}
+        </span>
+        <span class="recent-time">{{ scan.created_at|timesince }} назад</span>
+      </a>
+      {% endfor %}
+    {% else %}
+      <div class="no-recent">Ещё нет проверок — будь первым 🔍</div>
+    {% endif %}
+  </div>
+</section>
+
+<footer>
+  <span>MultiAvaScaner © 2025</span>
+  <span>Powered by <a href="https://virustotal.com" target="_blank">VirusTotal</a></span>
+</footer>
+
+<script>
+// ── Tabs ──
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn, .tab-panel').forEach(el => el.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+// ── APK file select ──
+const apkInput = document.getElementById('apk-input');
+const dropZone = document.getElementById('drop-zone');
+const fileSelected = document.getElementById('file-selected');
+const btnApkScan = document.getElementById('btn-apk-scan');
+
+function formatSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
+  return (bytes/(1024*1024)).toFixed(1) + ' MB';
+}
+
+function onFileChosen(file) {
+  if (!file) return;
+  document.getElementById('file-name-label').textContent = file.name;
+  document.getElementById('file-size-label').textContent = formatSize(file.size);
+  fileSelected.classList.add('show');
+  btnApkScan.disabled = false;
+}
+
+apkInput.addEventListener('change', () => onFileChosen(apkInput.files[0]));
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file && file.name.endsWith('.apk')) {
+    const dt = new DataTransfer(); dt.items.add(file);
+    apkInput.files = dt.files;
+    onFileChosen(file);
+  }
+});
+
+const qrInput = document.getElementById('qr-input');
+const qrDropZone = document.getElementById('qr-drop-zone');
+const qrFileSelected = document.getElementById('qr-file-selected');
+const btnQrScan = document.getElementById('btn-qr-scan');
+
+function onQrChosen(file) {
+  if (!file) return;
+  document.getElementById('qr-file-name-label').textContent = file.name;
+  document.getElementById('qr-file-size-label').textContent = formatSize(file.size);
+  qrFileSelected.classList.add('show');
+  btnQrScan.disabled = false;
+}
+
+qrInput.addEventListener('change', () => onQrChosen(qrInput.files[0]));
+
+qrDropZone.addEventListener('dragover', e => {
+  e.preventDefault();
+  qrDropZone.classList.add('dragover');
+});
+
+qrDropZone.addEventListener('dragleave', () => {
+  qrDropZone.classList.remove('dragover');
+});
+
+qrDropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  qrDropZone.classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file && file.type.startsWith('image/')) {
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    qrInput.files = dt.files;
+    onQrChosen(file);
+  }
+});
+
+// ── URL form AJAX ──
+function showResult(prefix, data) {
+  const verdict = data.verdict;
+
+  const icon =
+    verdict === 'clean' ? '✅' :
+    verdict === 'dangerous' ? '🚨' :
+    '⚠️';
+
+  const defaultTitle =
+    verdict === 'clean' ? 'Безопасно' :
+    verdict === 'dangerous' ? 'ОПАСНО!' :
+    'Подозрительно';
+
+  const title = data.title || defaultTitle;
+
+  const color =
+    verdict === 'clean' ? 'clean' :
+    verdict === 'dangerous' ? 'danger' :
+    'suspicious';
+
+  const barColor =
+    verdict === 'clean' ? 'green' :
+    verdict === 'dangerous' ? 'red' :
+    'yellow';
+
+  document.getElementById(prefix + '-icon').textContent = icon;
+  document.getElementById(prefix + '-icon').className = 'verdict-icon ' + color;
+
+  document.getElementById(prefix + '-title').textContent = title;
+  document.getElementById(prefix + '-title').className = 'verdict-title ' + color;
+
+  if (prefix === 'pw') {
+  document.getElementById(prefix+'-sub').innerHTML =
+    data.pwned
+      ? `Пароль найден в утечках: <b style="color:#ff4d4f">${data.count}</b> раз`
+      : 'Пароль не найден в известных утечках';
+} else {
+  document.getElementById(prefix+'-sub').textContent =
+    data.decoded || data.url || data.file_name || '';
+}
+
+  // Для URL / APK / QR
+  if (prefix !== 'pw') {
+    document.getElementById(prefix + '-malicious').textContent = data.malicious;
+    document.getElementById(prefix + '-suspicious').textContent = data.suspicious;
+    document.getElementById(prefix + '-harmless').textContent = data.harmless;
+    document.getElementById(prefix + '-undetected').textContent = data.undetected;
+    document.getElementById(prefix + '-percent').textContent = data.danger_percent + '%';
+
+    const bar = document.getElementById(prefix + '-bar');
+    if (bar) {
+      bar.className = 'danger-bar-fill ' + barColor;
+      setTimeout(() => {
+        bar.style.width = data.danger_percent + '%';
+      }, 100);
+    }
+  }
+
+  // Для Password
+  if (prefix === 'pw') {
+    const countEl = document.getElementById('pw-count');
+    if (countEl) {
+      countEl.textContent = data.pwned
+        ? `Пароль найден в утечках ${data.count} раз`
+        : 'Пароль не найден в известных утечках';
+    }
+
+    const recEl = document.getElementById('pw-recommendation');
+    if (recEl) {
+      recEl.textContent = data.recommendation || '';
+    }
+  }
+}
+function submitForm(formId, loadingId, errorId, resultId, loadingTextId, prefix, loadingMessages) {
+  const form = document.getElementById(formId);
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    document.getElementById(loadingId).classList.add('show');
+    document.getElementById(errorId).classList.remove('show');
+    document.getElementById(resultId).classList.remove('show');
+
+    let msgIndex = 0;
+    const loadingTextEl = document.getElementById(loadingTextId);
+    const msgTimer = setInterval(() => {
+      msgIndex = (msgIndex + 1) % loadingMessages.length;
+      loadingTextEl.textContent = loadingMessages[msgIndex];
+    }, 3000);
+
+    try {
+      const formData = new FormData(form);
+      const resp = await fetch(form.action, {
+        method: 'POST',
+        body: formData,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+      });
+      const data = await resp.json();
+      clearInterval(msgTimer);
+      document.getElementById(loadingId).classList.remove('show');
+
+      if (data.error) {
+        const errEl = document.getElementById(errorId);
+        errEl.textContent = '❌ ' + data.error;
+        errEl.classList.add('show');
+      } else {
+        showResult(prefix, data);
+        document.getElementById(resultId).classList.add('show');
+      }
+    } catch(err) {
+      clearInterval(msgTimer);
+      document.getElementById(loadingId).classList.remove('show');
+      const errEl = document.getElementById(errorId);
+      errEl.textContent = '❌ Ошибка соединения: ' + err.message;
+      errEl.classList.add('show');
+    }
+  });
+}
+function generateStrongPassword(length = 16) {
+  const lower = 'abcdefghijklmnopqrstuvwxyz';
+  const upper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const numbers = '0123456789';
+  const symbols = '!@#$%^&*()_+-=[]{}<>?';
+  const all = lower + upper + numbers + symbols;
+
+  let password = '';
+  password += lower[Math.floor(Math.random() * lower.length)];
+  password += upper[Math.floor(Math.random() * upper.length)];
+  password += numbers[Math.floor(Math.random() * numbers.length)];
+  password += symbols[Math.floor(Math.random() * symbols.length)];
+
+  for (let i = 4; i < length; i++) {
+    password += all[Math.floor(Math.random() * all.length)];
+  }
+
+  password = password.split('').sort(() => Math.random() - 0.5).join('');
+  return password;
+}
+
+const generatePasswordBtn = document.getElementById('generate-password-btn');
+if (generatePasswordBtn) {
+  generatePasswordBtn.addEventListener('click', () => {
+    const newPassword = generateStrongPassword(16);
+    document.getElementById('generated-password-text').textContent = newPassword;
+    document.getElementById('generated-password-box').style.display = 'flex';
+  });
+}
+
+submitForm('form-url', 'loading-url', 'error-url', 'result-url', 'loading-text-url', 'r', [
+  'Отправляем на VirusTotal...',
+  'Ждём результаты от 70+ движков...',
+  'Анализируем данные...',
+  'Почти готово...'
+]);
+
+submitForm('form-apk', 'loading-apk', 'error-apk', 'result-apk', 'loading-text-apk', 'ra', [
+  'Загружаем файл на VirusTotal...',
+  'Проверяем по базе хешей...',
+  'Запускаем антивирусные движки...',
+  'Анализируем APK структуру...',
+  'Почти готово...'
+]);
+  submitForm('form-qr', 'loading-qr', 'error-qr', 'result-qr', 'loading-text-qr', 'qr', [
+  'Распознаём QR код...',
+  'Извлекаем содержимое...',
+  'Проверяем ссылку через VirusTotal...',
+  'Почти готово...'
+]);
+  submitForm('form-password', 'loading-password', 'error-password', 'result-password', 'loading-text-password', 'pw', [
+  'Считаем SHA-1...',
+  'Отправляем префикс в HIBP...',
+  'Сравниваем хеши...',
+  'Почти готово...'
+]);
+</script>
+</body>
+</html>
