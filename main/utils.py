@@ -1,7 +1,7 @@
 import hashlib
 import requests
 
-
+import cv2
 
 def decode_qr(image_path):
     img = cv2.imread(image_path)
