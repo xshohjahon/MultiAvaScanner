@@ -1,16 +1,22 @@
-from pyzbar.pyzbar import decode
-from PIL import Image
 import hashlib
 import requests
 
-def decode_qr(image_path):
-    img = Image.open(image_path)
-    decoded = decode(img)
 
-    if not decoded:
+
+def decode_qr(image_path):
+    img = cv2.imread(image_path)
+
+    if img is None:
         return None
 
-    return decoded[0].data.decode('utf-8')
+    detector = cv2.QRCodeDetector()
+    data, bbox, _ = detector.detectAndDecode(img)
+
+    if data:
+        return data
+
+    return None
+
 
 def check_pwned_password(password: str):
     sha1_hash = hashlib.sha1(password.encode('utf-8')).hexdigest().upper()
