@@ -24,9 +24,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-i^67b5+^#h1-uitep@fjn(j5al&5_#_@ax9y)&(h-xv$u&b9zx'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition
@@ -43,6 +43,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -116,13 +117,21 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
-load_dotenv('api.env')  # указываем имя твоего файла
+load_dotenv('api.env')
 
-STATIC_URL = 'static/'
-STATICFILES_DIRS=[BASE_DIR/'staticfiles']
-STATIC_ROOT=BASE_DIR/'static'
 VIRUSTOTAL_API_KEY = os.getenv("VIRUSTOTAL_API_KEY")
-HIBP_API_KEY = os.getenv('HIBP_API_KEY')
+HIBP_API_KEY = os.getenv("HIBP_API_KEY")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-MEDIA_URL='media/'
-MEDIA_ROOT=BASE_DIR/'media'
+STATIC_URL = '/static/'
+
+STATICFILES_DIRS = [
+    BASE_DIR / 'staticfiles'
+]
+
+STATIC_ROOT = BASE_DIR / 'static'
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'

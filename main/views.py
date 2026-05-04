@@ -6,9 +6,11 @@ from django.http import JsonResponse
 from django.views import View
 from django.utils import timezone
 from django.conf import settings
-from .models import ScanResult
 import time
 from .utils import decode_qr, check_pwned_password
+from .ai_screenshot import analyze_screenshot_with_gemini
+from .models import ScanResult, ScreenshotScan
+
 
 VT_API_KEY = settings.VIRUSTOTAL_API_KEY
 VT_BASE_URL = "https://www.virustotal.com/api/v3"
@@ -190,7 +192,7 @@ class ScanDetailView(View):
 #  Вспомогательные функции
 # ════════════════════════════════════════════
 
-def wait_for_analysis(analysis_id, max_attempts=10, delay=3):
+def wait_for_analysis(analysis_id, max_attempts=25, delay=2):
     """Polling: ждём пока VirusTotal завершит анализ"""
     for _ in range(max_attempts):
         time.sleep(delay)
@@ -397,3 +399,85 @@ class ScanPasswordView(View):
 
         except requests.RequestException as e:
             return JsonResponse({'error': f'Ошибка запроса: {str(e)}'}, status=500)
+
+class ScanScreenshotView(View):
+    def post(self, request):
+        image = request.FILES.get("screenshot")
+
+        if not image:
+            return JsonResponse({"error": "Скриншот не загружен"}, status=400)
+
+        if not image.content_type or not image.content_type.startswith("image/"):
+            return JsonResponse({"error": "Нужен файл изображения"}, status=400)
+
+        file_hash = get_uploaded_file_hash(image)
+
+        cached = ScreenshotScan.objects.filter(file_hash=file_hash).first()
+        if cached:
+            data = cached.result
+            data["cached"] = True
+            return JsonResponse(data)
+
+        try:
+            upload_dir = os.path.join(settings.MEDIA_ROOT, "screenshots")
+            os.makedirs(upload_dir, exist_ok=True)
+
+            image_path = os.path.join(upload_dir, image.name)
+
+            with open(image_path, "wb+") as f:
+                for chunk in image.chunks():
+                    f.write(chunk)
+
+            result = analyze_screenshot_with_gemini(image_path)
+
+            verdict = result.get("verdict", "suspicious")
+            risk_score = result.get("risk_score", 50)
+
+            response_data = {
+                "status": "done",
+                "scan_type": "screenshot",
+                "verdict": verdict,
+                "title": result.get("summary", "AI анализ скриншота"),
+                "decoded": result.get("detected_brand", "unknown"),
+                "recommendation": result.get("recommendation", ""),
+                "risk_score": risk_score,
+                "suspicious_indicators": result.get("suspicious_indicators", []),
+                "is_official_likely": result.get("is_official_likely", False),
+                "danger_percent": risk_score,
+                "malicious": 1 if verdict == "dangerous" else 0,
+                "suspicious": 1 if verdict == "suspicious" else 0,
+                "harmless": 1 if verdict == "clean" else 0,
+                "undetected": 0,
+                "total_engines": 1,
+                "cached": False,
+            }
+
+            ScreenshotScan.objects.create(
+                file_hash=file_hash,
+                result=response_data
+            )
+
+            return JsonResponse(response_data)
+
+        except Exception as e:
+            if "429" in str(e):
+                return JsonResponse({
+                    "error": "AI лимит исчерпан. Попробуйте позже или завтра."
+                }, status=429)
+
+            if "503" in str(e) or "UNAVAILABLE" in str(e):
+                return JsonResponse({
+                    "error": "AI сервис временно перегружен. Попробуйте через пару минут."
+                }, status=503)
+
+            return JsonResponse({"error": "Ошибка AI анализа"}, status=500)
+
+
+def get_uploaded_file_hash(uploaded_file):
+    hasher = hashlib.sha256()
+
+    for chunk in uploaded_file.chunks():
+        hasher.update(chunk)
+
+    uploaded_file.seek(0)
+    return hasher.hexdigest()

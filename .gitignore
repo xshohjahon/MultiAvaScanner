@@ -1,5 +1,14 @@
 api.env
+.env
+
 db.sqlite3
+
 venv/
 __pycache__/
+
 media/
+static/
+staticfiles/
+
+*.log
+.DS_Store

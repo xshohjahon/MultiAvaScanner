@@ -9,4 +9,5 @@ urlpatterns = [
     path('scan/<int:scan_id>/', views.ScanDetailView.as_view(), name='scan_detail'),
     path('scan/qr/', views.ScanQRView.as_view(), name='scan_qr'),
     path('scan/password/', views.ScanPasswordView.as_view(), name='scan_password'),
+    path('scan/screenshot/', views.ScanScreenshotView.as_view(), name='scan_screenshot'),
 ]

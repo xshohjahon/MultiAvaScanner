@@ -74,3 +74,12 @@ class ScanResult(models.Model):
             return 'suspicious'
         else:
             return 'clean'
+
+
+class ScreenshotScan(models.Model):
+    file_hash = models.CharField(max_length=64, unique=True)
+    result = models.JSONField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.file_hash
