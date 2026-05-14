@@ -1,4 +1,4 @@
-# MultiAvScanner
+# MultiAvaScanner
 
 **Многоантивирусный онлайн-сканер файлов с интеграцией искусственного интеллекта Google Gemini**
 
