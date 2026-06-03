@@ -18,6 +18,18 @@ from .ai_screenshot import analyze_screenshot_with_gemini
 
 logger = logging.getLogger(__name__)
 
+
+# ════════════════════════════════════════════
+#  Кастомные исключения
+# ════════════════════════════════════════════
+
+class VTRateLimitError(Exception):
+    """VirusTotal вернул 429 — превышен лимит запросов."""
+
+class VTTimeoutError(Exception):
+    """Анализ не завершился за отведённое время."""
+
+
 # ════════════════════════════════════════════
 #  VirusTotal клиент — вся работа с API здесь
 # ════════════════════════════════════════════
@@ -27,28 +39,59 @@ class VirusTotalClient:
     POLL_DELAY = 2          # секунды между попытками
     POLL_MAX_ATTEMPTS = 25  # максимум ~50 секунд
 
+    # Retry при 429: сколько раз пробовать и сколько ждать между попытками
+    RATE_LIMIT_RETRIES = 3
+    RATE_LIMIT_DELAY = 20   # секунд (бесплатный план — 4 req/min)
+
     def __init__(self):
         self.session = requests.Session()
         self.session.headers.update({"x-apikey": settings.VIRUSTOTAL_API_KEY})
 
+    def _request(self, method: str, url: str, **kwargs) -> requests.Response:
+        """
+        Обёртка над session.request с автоматическим retry при 429.
+        Бросает VTRateLimitError если все попытки исчерпаны.
+        """
+        for attempt in range(1, self.RATE_LIMIT_RETRIES + 1):
+            resp = self.session.request(method, url, **kwargs)
+
+            if resp.status_code != 429:
+                resp.raise_for_status()
+                return resp
+
+            # Берём Retry-After из заголовков если есть, иначе наш дефолт
+            retry_after = int(resp.headers.get("Retry-After", self.RATE_LIMIT_DELAY))
+            logger.warning(
+                "VT rate limit hit (attempt %d/%d), waiting %ds...",
+                attempt, self.RATE_LIMIT_RETRIES, retry_after,
+            )
+
+            if attempt < self.RATE_LIMIT_RETRIES:
+                time.sleep(retry_after)
+
+        raise VTRateLimitError(
+            "Превышен лимит запросов VirusTotal. "
+            "Бесплатный план позволяет 4 запроса в минуту — попробуйте через минуту."
+        )
+
     def submit_url(self, url: str) -> str:
         """Отправляет URL на анализ, возвращает analysis_id."""
-        resp = self.session.post(
+        resp = self._request(
+            "POST",
             f"{self.BASE_URL}/urls",
             data={"url": url},
             timeout=15,
         )
-        resp.raise_for_status()
         return resp.json()["data"]["id"]
 
     def submit_file(self, filename: str, file_bytes: bytes) -> str:
         """Загружает файл на анализ, возвращает analysis_id."""
-        resp = self.session.post(
+        resp = self._request(
+            "POST",
             f"{self.BASE_URL}/files",
             files={"file": (filename, file_bytes, "application/octet-stream")},
             timeout=60,
         )
-        resp.raise_for_status()
         return resp.json()["data"]["id"]
 
     def get_by_hash(self, sha256: str) -> dict | None:
@@ -57,9 +100,14 @@ class VirusTotalClient:
             f"{self.BASE_URL}/files/{sha256}",
             timeout=10,
         )
-        if resp.status_code == 200:
-            return resp.json()
-        return None
+        if resp.status_code == 404:
+            return None
+        if resp.status_code == 429:
+            raise VTRateLimitError(
+                "Превышен лимит запросов VirusTotal — попробуйте через минуту."
+            )
+        resp.raise_for_status()
+        return resp.json()
 
     def wait_for_analysis(self, analysis_id: str) -> dict | None:
         """
@@ -77,6 +125,10 @@ class VirusTotalClient:
                     data = resp.json()
                     if data["data"]["attributes"]["status"] == "completed":
                         return data
+                # При 429 во время polling — просто ждём дольше
+                elif resp.status_code == 429:
+                    logger.warning("VT rate limit during polling, sleeping 20s")
+                    time.sleep(20)
             except requests.RequestException:
                 logger.warning(
                     "VT polling attempt %d/%d failed for %s",
@@ -332,12 +384,14 @@ class ScanURLView(View):
         try:
             service = ScanService()
             scan = service.scan_url(url, user_ip=get_client_ip(request))
+        except VTRateLimitError as e:
+            return error_response(str(e), status=429)
         except requests.RequestException as e:
             logger.exception("VT request failed for URL: %s", url)
-            return error_response(f"Ошибка запроса: {e}", status=500)
+            return error_response("Не удалось связаться с VirusTotal. Попробуйте позже.", status=502)
 
         if scan.status == "error":
-            return error_response("Таймаут анализа VirusTotal", status=504)
+            return error_response("Анализ занял слишком долго. Попробуйте ещё раз.", status=504)
 
         return JsonResponse(build_response(scan))
 
@@ -364,12 +418,14 @@ class ScanFileView(View):
                 file_bytes=file_bytes,
                 user_ip=get_client_ip(request),
             )
+        except VTRateLimitError as e:
+            return error_response(str(e), status=429)
         except requests.RequestException as e:
             logger.exception("VT request failed for APK: %s", uploaded.name)
-            return error_response(f"Ошибка запроса: {e}", status=500)
+            return error_response("Не удалось связаться с VirusTotal. Попробуйте позже.", status=502)
 
         if scan.status == "error":
-            return error_response("Таймаут анализа VirusTotal", status=504)
+            return error_response("Анализ занял слишком долго. Попробуйте ещё раз.", status=504)
 
         return JsonResponse(build_response(scan))
 
@@ -386,9 +442,11 @@ class ScanQRView(View):
         try:
             service = ScanService()
             scan, decoded = service.scan_qr(file, user_ip=get_client_ip(request))
+        except VTRateLimitError as e:
+            return error_response(str(e), status=429)
         except requests.RequestException as e:
             logger.exception("VT request failed for QR")
-            return error_response(f"Ошибка запроса: {e}", status=500)
+            return error_response("Не удалось связаться с VirusTotal. Попробуйте позже.", status=502)
         except Exception as e:
             logger.exception("QR scan failed")
             return error_response(str(e), status=500)
@@ -397,7 +455,7 @@ class ScanQRView(View):
             return error_response("QR не распознан")
 
         if scan.status == "error":
-            return error_response("Таймаут анализа VirusTotal", status=504)
+            return error_response("Анализ занял слишком долго. Попробуйте ещё раз.", status=504)
 
         # QR не ссылка
         if scan.raw_result and "decoded" in scan.raw_result and not scan.url:
